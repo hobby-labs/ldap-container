@@ -1,13 +1,9 @@
 FROM ubuntu:18.04
 MAINTAINER Tsutomu Nakamura <tsuna.0x00@gmail.com>
 
-#WORK_DIR="/var/tmp"
-
 RUN apt-get update -q \
     && DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends slapd ldap-utils libnss-ldap \
     && rm -rf /var/lib/apt/lists/*
-
-##COPY schema/ ${WORK_DIR}/
 
 ARG CONFIG_PASSWORD=secret
 ARG MANAGER_PASSWORD=secret
@@ -17,7 +13,6 @@ ENV CONFIG_PASSWORD=$CONFIG_PASSWORD
 ENV MANAGER_PASSWORD=$MANAGER_PASSWORD
 ENV DOMAIN=$DOMAIN
 
-# slappasswd -s changeit
 # Set root config informations
 RUN /usr/sbin/slapd -h 'ldap:/// ldapi:///' -g openldap -u openldap -F /etc/ldap/slapd.d \
     && sleep 2 \
@@ -38,7 +33,9 @@ add: olcRootDN" | ldapadd -Y EXTERNAL -H ldapi:/// \
 ##     && ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/nis.ldif \
 ##     && ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/inetorgperson.ldif
 
-# Set minotor DB (skip on ubuntu)
+# Set monitor DB (skipped on ubuntu)
+
+# Set database information and basic data
 RUN /usr/sbin/slapd -h 'ldap:/// ldapi:///' -g openldap -u openldap -F /etc/ldap/slapd.d \
     && sleep 2 \
     && __DOMAIN_COMPONENT__=$(echo "dc=$(echo ${DOMAIN} | sed -e 's|\.|,dc=|g')") \
@@ -129,11 +126,6 @@ userPassword: $(slappasswd -s secret)\n\
 mail: hanako-suzuki@${__DOMAIN_COMPONENT__}" | ldapadd -x -D "cn=Manager,${__DOMAIN_COMPONENT__}" -w ${MANAGER_PASSWORD} \
     && ldapwhoami -w secret -D "uid=taro-suzuki,ou=People,${__DOMAIN_COMPONENT__}" \
     && ldapwhoami -w secret -D "uid=hanako-suzuki,ou=People,${__DOMAIN_COMPONENT__}"
-
-
-# To check authentication
-# ldapsearch -LLL -w pw-taro-suzuki -H ldap://localhost -x -D "uid=taro-suzuki,ou=Users,dc=mysite,dc=example,dc=com" -b "ou=Users,dc=mysite,dc=example,dc=com"
-# ldapsearch -LLL -w pw-hanako-suzuki -H ldap://localhost -x -D "uid=hanako-suzuki,ou=Users,dc=mysite,dc=example,dc=com" -b "ou=Users,dc=mysite,dc=example,dc=com"
 
 ENTRYPOINT ["/usr/sbin/slapd"]
 CMD ["-h", "ldap:/// ldapi:///", "-g", "openldap", "-u", "openldap", "-F", "/etc/ldap/slapd.d", "-d", "3"]
